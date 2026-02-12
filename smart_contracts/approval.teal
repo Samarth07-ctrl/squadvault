@@ -1,0 +1,152 @@
+#pragma version 6
+txn ApplicationID
+int 0
+==
+bnz handle_creation
+txn OnCompletion
+int OptIn
+==
+bnz handle_optin
+txn OnCompletion
+int CloseOut
+==
+bnz handle_closeout
+txn OnCompletion
+int UpdateApplication
+==
+bnz handle_update
+txn OnCompletion
+int DeleteApplication
+==
+bnz handle_delete
+txn OnCompletion
+int NoOp
+==
+bnz handle_noop
+err
+
+handle_creation:
+byte "Creator"
+txn Sender
+app_global_put
+byte "PoolName"
+txna ApplicationArgs 0
+app_global_put
+byte "ContributionAmount"
+txna ApplicationArgs 1
+btoi
+app_global_put
+byte "TotalFunds"
+int 0
+app_global_put
+int 1
+return
+
+handle_optin:
+txn Sender
+byte "HasPaid"
+int 0
+app_local_put
+txn Sender
+byte "AmountPaid"
+int 0
+app_local_put
+int 1
+return
+
+handle_closeout:
+int 1
+return
+
+handle_update:
+int 0
+return
+
+handle_delete:
+int 0
+return
+
+handle_noop:
+txna ApplicationArgs 0
+byte "pay"
+==
+bnz pay_contribution
+txna ApplicationArgs 0
+byte "withdraw"
+==
+bnz withdraw_funds
+err
+
+pay_contribution:
+global GroupSize
+int 2
+==
+assert
+gtxn 1 Receiver
+global CurrentApplicationAddress
+==
+assert
+txn Sender
+byte "AmountPaid"
+txn Sender
+byte "AmountPaid"
+app_local_get
+gtxn 1 Amount
++
+app_local_put
+txn Sender
+byte "AmountPaid"
+app_local_get
+byte "ContributionAmount"
+app_global_get
+>=
+bnz set_paid_status
+continue_payment:
+byte "TotalFunds"
+byte "TotalFunds"
+app_global_get
+gtxn 1 Amount
++
+app_global_put
+int 1
+return
+
+set_paid_status:
+txn Sender
+byte "HasPaid"
+int 1
+app_local_put
+b continue_payment
+
+withdraw_funds:
+txn Sender
+byte "Creator"
+app_global_get
+==
+assert
+global CurrentApplicationAddress
+balance
+txna ApplicationArgs 1
+btoi
+>=
+assert
+itxn_begin
+int pay
+itxn_field TypeEnum
+txn Sender
+itxn_field Receiver
+txna ApplicationArgs 1
+btoi
+itxn_field Amount
+int 0
+itxn_field Fee
+itxn_submit
+byte "TotalFunds"
+byte "TotalFunds"
+app_global_get
+txna ApplicationArgs 1
+btoi
+-
+app_global_put
+int 1
+return
